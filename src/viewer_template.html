@@ -414,20 +414,42 @@
     const desc = revisionInput.value.trim();
     if (desc) {
       // Create a textarea to hold the text to copy
-      const el = document.createElement('textarea');
-      el.value = "Page " + (window._revSelection.page + 1) + " | Area: x=" + 
+      const finalRevText = "Page " + (window._revSelection.page + 1) + " | Area: x=" + 
                  Math.round(window._revSelection.x*100) + "%-" + Math.round(window._revSelection.x2*100) + 
                  "%, y=" + Math.round(window._revSelection.y*100) + "%-" + Math.round(window._revSelection.y2*100) + 
                  "% | Request: " + desc;
-      document.body.appendChild(el);
-      el.select();
+      
       try {
-        document.execCommand('copy');
-        alert("Revision request copied to clipboard! Paste it in the 'What to change' box in the sidebar.");
-      } catch(err) {
-        console.error('Oops, unable to copy');
+        const parentDoc = window.parent.document;
+        const tas = parentDoc.querySelectorAll('textarea');
+        let targetTa = null;
+        for(let ta of tas) {
+            if(ta.placeholder && ta.placeholder.includes("replace the diagram")) {
+                targetTa = ta;
+                break;
+            }
+        }
+        if(targetTa) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+            nativeInputValueSetter.call(targetTa, finalRevText);
+            targetTa.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+            throw new Error("Textarea not found");
+        }
+      } catch(e) {
+        // fallback to copy
+        const el = document.createElement('textarea');
+        el.value = finalRevText;
+        document.body.appendChild(el);
+        el.select();
+        try {
+          document.execCommand('copy');
+          alert("Revision request copied to clipboard! Paste it in the 'What to change' box in the sidebar.");
+        } catch(err) {
+          console.error('Oops, unable to copy');
+        }
+        document.body.removeChild(el);
       }
-      document.body.removeChild(el);
     }
     revisionModal.classList.remove('show');
     redrawAll();

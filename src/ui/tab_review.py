@@ -12,6 +12,7 @@ from services.utils import clean_latex_response
 from config import get_router_config
 from compiler import compile as compile_latex, render_pages, extract_page_text
 from viewer import render as render_viewer
+from latex_editor import st_latex_editor
 
 
 def render(current_topic, config):
@@ -31,10 +32,10 @@ def render(current_topic, config):
     with col_editor:
         st.markdown("#### LaTeX Editor")
         latex_val = current_topic.get("latex_code", "")
-        latex_input = st.text_area(
-            label="kode", value=latex_val, height=500,
-            key=f"editor_{current_topic['id']}",
-            label_visibility="collapsed",
+        latex_input = st_latex_editor(
+            value=latex_val, 
+            height=600,
+            key=f"editor_{current_topic['id']}"
         )
         if latex_input != latex_val:
             topics.update(current_topic["id"], {"latex_code": latex_input})
@@ -76,19 +77,12 @@ def render(current_topic, config):
     from compiler import get_page_count
     page_count = get_page_count(cached_pdf) if cached_pdf else 0
 
-    col_r1, col_r2 = st.columns([1, 3])
-    with col_r1:
-        rev_page = st.number_input(
-            "Page", min_value=1, max_value=max(page_count, 1), value=1,
-            key=f"revpage_{current_topic['id']}",
-        )
-    with col_r2:
-        rev_desc = st.text_area(
-            "What to change",
-            placeholder="e.g. replace the diagram with a flowchart, or add more detail about methodology...",
-            height=60,
-            key=f"revdesc_{current_topic['id']}",
-        )
+    rev_desc = st.text_area(
+        "What to change",
+        placeholder="e.g. replace the diagram with a flowchart, or add more detail about methodology...",
+        height=80,
+        key=f"revdesc_{current_topic['id']}",
+    )
 
     col_rb1, col_rb2, col_rb3 = st.columns([1, 1, 4])
     with col_rb1:
@@ -101,7 +95,10 @@ def render(current_topic, config):
         st.experimental_rerun()
 
     if apply_rev:
-        _handle_revision(current_topic, rc, latex_input, cached_pdf, rev_page, rev_desc)
+        import re
+        page_match = re.search(r"Page (\d+)", rev_desc, re.IGNORECASE)
+        parsed_page = int(page_match.group(1)) if page_match else 1
+        _handle_revision(current_topic, rc, latex_input, cached_pdf, parsed_page, rev_desc)
 
     # history
     if current_topic.get("revision_history"):
@@ -167,3 +164,4 @@ def _handle_revision(current_topic, rc, latex_input, cached_pdf, page_num, revis
             st.experimental_rerun()
         except Exception as e:
             st.error(f"gagal merevisi: {str(e)}")
+

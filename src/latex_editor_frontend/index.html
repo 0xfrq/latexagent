@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX Editor</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        #editor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            font-size: 14px;
+        }
+    </style>
+    <!-- Load Ace from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js" integrity="sha512-u1v8HntnSFzJ2Kk1kG5kPtz0H63s2iZfWEXOqWv9Wf3HjR5qX0uR+0VfXh+oGzL/P/tZ/A9U9tYJ1R/R9E+Ovw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/mode-latex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/theme-github.min.js"></script>
+</head>
+<body>
+
+<div id="editor"></div>
+
+<script>
+    // Streamlit Component Protocol
+    function sendToStreamlit(type, data) {
+        window.parent.postMessage({ type: type, ...data }, "*");
+    }
+    
+    function setComponentValue(value) {
+        sendToStreamlit("streamlit:setComponentValue", { value: value });
+    }
+    
+    function setFrameHeight(h) {
+        sendToStreamlit("streamlit:setFrameHeight", { height: h });
+    }
+    
+    function signalReady() {
+        window.parent.postMessage({ type: "streamlit:componentReady", apiVersion: 1 }, "*");
+    }
+
+    var editor = ace.edit("editor");
+    editor.setTheme("ace/theme/github");
+    editor.session.setMode("ace/mode/latex");
+    editor.setOptions({
+        wrap: true,
+        showPrintMargin: false,
+        fontSize: "14pt"
+    });
+
+    let debounceTimer;
+
+    editor.session.on('change', function(delta) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            setComponentValue(editor.getValue());
+        }, 500); // 500ms debounce
+    });
+
+    window.addEventListener("message", function(event) {
+        if (event.data && event.data.type === "streamlit:render") {
+            const args = event.data.args;
+            if (args.value !== undefined && editor.getValue() !== args.value) {
+                // Keep cursor position when updating from outside
+                const pos = editor.getCursorPosition();
+                editor.setValue(args.value, -1); 
+                editor.moveCursorToPosition(pos);
+            }
+            if (args.height !== undefined) {
+                setFrameHeight(args.height);
+            }
+        }
+    });
+
+    signalReady();
+    setTimeout(signalReady, 50);
+    setTimeout(signalReady, 200);
+</script>
+
+</body>
+</html>
