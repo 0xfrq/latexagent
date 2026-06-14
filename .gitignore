@@ -1,0 +1,41 @@
+# sensitive files - jangan commit secrets
+config.json
+
+# data - topic data dan compiled pdfs
+data/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# streamlit
+.streamlit/secrets.toml
+
+# temporary files
+*.tmp
+*.log
+launch_log.txt

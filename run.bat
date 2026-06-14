@@ -1,7 +1,7 @@
 @echo off
 echo ==========================================
-echo   LaTeX Editor Lokal - Starting...
+echo   LaTeX AI Editor - Starting...
 echo ==========================================
 echo.
-py -m streamlit run app.py
+py -m streamlit run src/app.py
 pause
