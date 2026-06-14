@@ -182,7 +182,7 @@
     <textarea id="revisionInput" placeholder="describe the changes you want... e.g. replace this diagram with a flowchart, or add more detail about the methodology, or remove this paragraph and add bullet points instead..."></textarea>
     <div class="modal-actions">
       <button class="btn-cancel" id="revisionCancel">Cancel</button>
-      <button class="btn-ok" id="revisionOk">Apply Revision</button>
+      <button class="btn-ok" id="revisionOk">Copy Description & Close</button>
     </div>
   </div>
 </div>
@@ -190,37 +190,9 @@
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script>
 (function() {
-  // =============================================
-  // streamlit component protocol (manual)
-  // =============================================
-  function sendToStreamlit(type, data) {
-    window.parent.postMessage({ type: type, ...data }, "*");
-  }
-  function setComponentValue(value) {
-    sendToStreamlit("streamlit:setComponentValue", { value: value });
-  }
-  function setFrameHeight() {
-    const h = document.documentElement.scrollHeight;
-    sendToStreamlit("streamlit:setFrameHeight", { height: h });
-  }
-  // signal ready with apiVersion - retry multiple times
-  function signalReady() {
-    window.parent.postMessage({
-      type: "streamlit:componentReady",
-      apiVersion: 1,
-    }, "*");
-  }
-  signalReady();
-  setTimeout(signalReady, 50);
-  setTimeout(signalReady, 200);
-  setTimeout(signalReady, 500);
-  setTimeout(setFrameHeight, 500);
+  const PAGES = __PAGES_JSON__;
+  const PDF_BASE64 = "__PDF_BASE64__";
 
-  // =============================================
-  // state
-  // =============================================
-  let PAGES = null;
-  let PDF_BASE64 = null;
   let currentTool = 'highlight';
   let currentColor = '#FFFF00';
   let currentPage = 0;
@@ -228,9 +200,7 @@
   let isDrawing = false;
   let startX = 0, startY = 0;
   let currentPath = [];
-  let initialized = false;
 
-  // dom
   const pageImg = document.getElementById('pageImg');
   const canvas = document.getElementById('annoCanvas');
   const ctx = canvas.getContext('2d');
@@ -249,37 +219,13 @@
   const revisionInput = document.getElementById('revisionInput');
   const revPageBadge = document.getElementById('revPageBadge');
 
-  // =============================================
-  // listen for render events from streamlit
-  // =============================================
-  window.addEventListener("message", function(event) {
-    if (event.data && event.data.type === "streamlit:render") {
-      const args = event.data.args || {};
-      try {
-        PAGES = JSON.parse(args.pages_json || "[]");
-        PDF_BASE64 = args.pdf_base64 || "";
-      } catch(e) { PAGES = []; PDF_BASE64 = ""; }
+  if (!PAGES || PAGES.length === 0 || !PDF_BASE64) return;
 
-      if (PAGES.length > 0 && PDF_BASE64 && !initialized) {
-        initViewer();
-      } else if (initialized) {
-        setFrameHeight();
-      }
-    }
-  });
-
-  // =============================================
-  // viewer initialization
-  // =============================================
-  function initViewer() {
-    initialized = true;
-    noPdfMsg.style.display = 'none';
-    pageWrapper.style.display = 'inline-block';
-    pageNav.style.display = 'flex';
-    downloadBar.style.display = 'block';
-    loadPage(0);
-    setTimeout(setFrameHeight, 1000);
-  }
+  noPdfMsg.style.display = 'none';
+  pageWrapper.style.display = 'inline-block';
+  pageNav.style.display = 'flex';
+  downloadBar.style.display = 'block';
+  loadPage(0);
 
   function loadPage(idx) {
     currentPage = idx;
@@ -294,7 +240,6 @@
       canvas.style.width = pageImg.clientWidth + 'px';
       canvas.style.height = pageImg.clientHeight + 'px';
       redrawAll();
-      setTimeout(setFrameHeight, 100);
     };
   }
 
@@ -303,7 +248,6 @@
       canvas.style.width = pageImg.clientWidth + 'px';
       canvas.style.height = pageImg.clientHeight + 'px';
     }
-    setFrameHeight();
   });
 
   function getRelCoords(e) {
@@ -345,18 +289,12 @@
     });
   }
 
-  // =============================================
-  // mouse events
-  // =============================================
   canvas.addEventListener('mousedown', function(e) {
     const pos = getRelCoords(e);
     if (currentTool === 'eraser') { eraseNearest(pos.x, pos.y); return; }
     if (currentTool === 'text') {
       window._textX = pos.x; window._textY = pos.y;
       textModalInput.value = ''; textModal.classList.add('show'); textModalInput.focus(); return;
-    }
-    if (currentTool === 'revise') {
-      isDrawing = true; startX = pos.x; startY = pos.y; return;
     }
     isDrawing = true; startX = pos.x; startY = pos.y;
     if (currentTool === 'draw') currentPath = [{x:pos.x, y:pos.y}];
@@ -402,12 +340,11 @@
 
     if (currentTool === 'revise') {
       if (Math.abs(pos.x-startX) > 0.01 && Math.abs(pos.y-startY) > 0.01) {
-        // show revision modal
         revPageBadge.textContent = 'Page ' + (currentPage + 1);
         revisionInput.value = '';
         revisionModal.classList.add('show');
         revisionInput.focus();
-        // store selection coords for sending
+        // push selection for streamlit to capture via JS clipboard workaround or similar
         window._revSelection = {
           page: currentPage,
           x: Math.min(startX, pos.x), y: Math.min(startY, pos.y),
@@ -446,9 +383,6 @@
     if (minIdx >= 0) { annotations.splice(minIdx, 1); redrawAll(); }
   }
 
-  // =============================================
-  // toolbar
-  // =============================================
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
@@ -468,36 +402,32 @@
   prevBtn.addEventListener('click', function() { if(currentPage>0) loadPage(currentPage-1); });
   nextBtn.addEventListener('click', function() { if(currentPage<PAGES.length-1) loadPage(currentPage+1); });
 
-  // text modal
   document.getElementById('textModalOk').addEventListener('click', function() {
     const t = textModalInput.value.trim();
     if (t) annotations.push({type:'text',page:currentPage,x:window._textX,y:window._textY,text:t,color:currentColor});
     textModal.classList.remove('show'); redrawAll();
   });
   document.getElementById('textModalCancel').addEventListener('click', function() { textModal.classList.remove('show'); });
-  textModalInput.addEventListener('keydown', function(e) {
-    if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); document.getElementById('textModalOk').click(); }
-    if (e.key==='Escape') document.getElementById('textModalCancel').click();
-  });
 
-  // =============================================
-  // revision modal - sends directly to streamlit!
-  // =============================================
+  // instead of component interaction, just copy to clipboard or provide text to user
   document.getElementById('revisionOk').addEventListener('click', function() {
     const desc = revisionInput.value.trim();
-    if (desc && window._revSelection) {
-      // kirim langsung ke python via streamlit component protocol
-      setComponentValue({
-        action: "revise",
-        page: window._revSelection.page,
-        area: {
-          x: window._revSelection.x,
-          y: window._revSelection.y,
-          x2: window._revSelection.x2,
-          y2: window._revSelection.y2,
-        },
-        description: desc,
-      });
+    if (desc) {
+      // Create a textarea to hold the text to copy
+      const el = document.createElement('textarea');
+      el.value = "Page " + (window._revSelection.page + 1) + " | Area: x=" + 
+                 Math.round(window._revSelection.x*100) + "%-" + Math.round(window._revSelection.x2*100) + 
+                 "%, y=" + Math.round(window._revSelection.y*100) + "%-" + Math.round(window._revSelection.y2*100) + 
+                 "% | Request: " + desc;
+      document.body.appendChild(el);
+      el.select();
+      try {
+        document.execCommand('copy');
+        alert("Revision request copied to clipboard! Paste it in the 'What to change' box in the sidebar.");
+      } catch(err) {
+        console.error('Oops, unable to copy');
+      }
+      document.body.removeChild(el);
     }
     revisionModal.classList.remove('show');
     redrawAll();
@@ -505,14 +435,7 @@
   document.getElementById('revisionCancel').addEventListener('click', function() {
     revisionModal.classList.remove('show'); redrawAll();
   });
-  revisionInput.addEventListener('keydown', function(e) {
-    if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); document.getElementById('revisionOk').click(); }
-    if (e.key==='Escape') document.getElementById('revisionCancel').click();
-  });
 
-  // =============================================
-  // download with pdf-lib
-  // =============================================
   document.getElementById('dlBtn').addEventListener('click', async function() {
     const dlStatus = document.getElementById('dlStatus');
     const dlBtn = document.getElementById('dlBtn');
