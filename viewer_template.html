@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8f9fa; color: #333; overflow-x: hidden; }
+
+  /* toolbar */
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px;
+    background: #fff; border-bottom: 1px solid #ddd; align-items: center;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .toolbar .sep { width: 1px; height: 28px; background: #ddd; margin: 0 4px; }
+  .tool-btn {
+    padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 13px; color: #444;
+    transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+  }
+  .tool-btn:hover { background: #f0f0f0; border-color: #aaa; }
+  .tool-btn.active { background: #e8f0fe; border-color: #4285f4; color: #1a73e8; }
+  .tool-btn svg { width: 16px; height: 16px; }
+
+  .color-picker-wrap { position: relative; display: inline-flex; align-items: center; }
+  .color-dot {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid #ccc;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .color-dot:hover { border-color: #888; }
+  .color-input { position: absolute; opacity: 0; width: 20px; height: 20px; cursor: pointer; }
+
+  /* page area */
+  .page-area {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 16px; min-height: 600px;
+  }
+  .page-wrapper {
+    position: relative; display: inline-block;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12); border-radius: 4px;
+    background: #fff; overflow: hidden;
+  }
+  .page-img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+  .anno-canvas {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    cursor: crosshair;
+  }
+
+  /* navigation */
+  .page-nav {
+    display: flex; align-items: center; gap: 12px; padding: 10px;
+    justify-content: center; background: #fff; border-top: 1px solid #ddd;
+  }
+  .nav-btn {
+    padding: 6px 14px; border: 1px solid #ccc; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 13px;
+  }
+  .nav-btn:hover { background: #f0f0f0; }
+  .nav-btn:disabled { opacity: 0.4; cursor: default; }
+  .page-info { font-size: 13px; color: #666; }
+
+  /* download bar */
+  .download-bar { padding: 10px; text-align: center; background: #fff; border-top: 1px solid #ddd; }
+  .dl-btn {
+    padding: 8px 24px; border: none; border-radius: 6px;
+    background: #1a73e8; color: #fff; font-size: 14px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .dl-btn:hover { background: #1557b0; }
+  .dl-btn:disabled { background: #ccc; cursor: default; }
+
+  /* text input modal */
+  .text-modal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.3); z-index: 200; align-items: center; justify-content: center;
+  }
+  .text-modal.show { display: flex; }
+  .text-modal-box {
+    background: #fff; padding: 20px; border-radius: 8px; width: 320px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .text-modal-box h3 { margin-bottom: 10px; font-size: 15px; }
+  .text-modal-box textarea {
+    width: 100%; height: 80px; border: 1px solid #ccc; border-radius: 4px;
+    padding: 8px; font-size: 13px; resize: vertical;
+  }
+  .text-modal-box .modal-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+  .text-modal-box button { padding: 6px 16px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; font-size: 13px; }
+  .text-modal-box .btn-ok { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  .text-modal-box .btn-cancel { background: #fff; }
+
+  .no-pdf-msg { text-align: center; padding: 60px 20px; color: #888; font-size: 15px; }
+  .status-msg { font-size: 12px; color: #888; padding: 4px 12px; }
+</style>
+</head>
+<body>
+
+<!-- toolbar -->
+<div class="toolbar" id="toolbar">
+  <button class="tool-btn active" data-tool="highlight" title="Highlight">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="14" width="18" height="6" rx="1" fill="currentColor" opacity="0.3"/><path d="M5 10l7-7 7 7"/></svg>
+    Highlight
+  </button>
+  <button class="tool-btn" data-tool="text" title="Tambah Teks">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+    Teks
+  </button>
+  <button class="tool-btn" data-tool="draw" title="Gambar Bebas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+    Gambar
+  </button>
+  <button class="tool-btn" data-tool="underline" title="Garis Bawah">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v7a6 6 0 0012 0V3M4 21h16"/></svg>
+    Underline
+  </button>
+  <button class="tool-btn" data-tool="strikethrough" title="Coret">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4H9a3 3 0 00 0 6h6a3 3 0 010 6H8M4 12h16"/></svg>
+    Coret
+  </button>
+  <div class="sep"></div>
+  <button class="tool-btn" data-tool="eraser" title="Hapus Anotasi">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l9-9 8 8-4 4z"/><path d="M18 13l-6-6"/></svg>
+    Hapus
+  </button>
+  <button class="tool-btn" id="undoBtn" title="Undo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 0115.36-6.36L21 9"/></svg>
+    Undo
+  </button>
+  <button class="tool-btn" id="clearBtn" title="Hapus Semua">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>
+    Clear
+  </button>
+  <div class="sep"></div>
+  <div class="color-picker-wrap">
+    <div class="color-dot" id="colorDot" style="background: #FFFF00;"></div>
+    <input type="color" class="color-input" id="colorInput" value="#FFFF00">
+  </div>
+</div>
+
+<!-- page display -->
+<div class="page-area" id="pageArea">
+  <div class="no-pdf-msg" id="noPdfMsg">Menunggu kompilasi...</div>
+  <div class="page-wrapper" id="pageWrapper" style="display:none;">
+    <img class="page-img" id="pageImg" alt="PDF Page">
+    <canvas class="anno-canvas" id="annoCanvas"></canvas>
+  </div>
+</div>
+
+<!-- page navigation -->
+<div class="page-nav" id="pageNav" style="display:none;">
+  <button class="nav-btn" id="prevBtn" disabled>Prev</button>
+  <span class="page-info" id="pageInfo">1 / 1</span>
+  <button class="nav-btn" id="nextBtn" disabled>Next</button>
+</div>
+
+<!-- download -->
+<div class="download-bar" id="downloadBar" style="display:none;">
+  <button class="dl-btn" id="dlBtn">Download PDF (dengan anotasi)</button>
+  <span class="status-msg" id="dlStatus"></span>
+</div>
+
+<!-- text input modal -->
+<div class="text-modal" id="textModal">
+  <div class="text-modal-box">
+    <h3>Tambah Teks Anotasi</h3>
+    <textarea id="textModalInput" placeholder="ketik teks di sini..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="textModalCancel">Batal</button>
+      <button class="btn-ok" id="textModalOk">Tambah</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script>
+(function() {
+  // --- data dari python (di-inject via template) ---
+  const PAGES = __PAGES_JSON__;
+  const PDF_BASE64 = "__PDF_BASE64__";
+
+  // --- state ---
+  let currentTool = 'highlight';
+  let currentColor = '#FFFF00';
+  let currentPage = 0;
+  let annotations = []; // semua anotasi dari semua halaman
+  let isDrawing = false;
+  let startX = 0, startY = 0;
+  let currentPath = [];
+  let textClickX = 0, textClickY = 0;
+
+  // --- dom elements ---
+  const pageImg = document.getElementById('pageImg');
+  const canvas = document.getElementById('annoCanvas');
+  const ctx = canvas.getContext('2d');
+  const pageWrapper = document.getElementById('pageWrapper');
+  const pageNav = document.getElementById('pageNav');
+  const downloadBar = document.getElementById('downloadBar');
+  const noPdfMsg = document.getElementById('noPdfMsg');
+  const pageInfo = document.getElementById('pageInfo');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const colorDot = document.getElementById('colorDot');
+  const colorInput = document.getElementById('colorInput');
+  const textModal = document.getElementById('textModal');
+  const textModalInput = document.getElementById('textModalInput');
+
+  // --- cek apakah ada data pdf ---
+  if (!PAGES || PAGES.length === 0 || !PDF_BASE64) {
+    return; // belum ada pdf, tunggu kompilasi
+  }
+
+  // tampilkan viewer
+  noPdfMsg.style.display = 'none';
+  pageWrapper.style.display = 'inline-block';
+  pageNav.style.display = 'flex';
+  downloadBar.style.display = 'block';
+
+  // --- load halaman pertama ---
+  function loadPage(idx) {
+    currentPage = idx;
+    const pg = PAGES[idx];
+    pageImg.src = 'data:image/png;base64,' + pg.image;
+    pageInfo.textContent = (idx + 1) + ' / ' + PAGES.length;
+    prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx === PAGES.length - 1;
+
+    pageImg.onload = function() {
+      // sesuaikan ukuran canvas dengan gambar
+      canvas.width = pageImg.naturalWidth;
+      canvas.height = pageImg.naturalHeight;
+      // set display size canvas sama dengan gambar
+      canvas.style.width = pageImg.clientWidth + 'px';
+      canvas.style.height = pageImg.clientHeight + 'px';
+      redrawAnnotations();
+    };
+  }
+
+  // --- resize canvas saat window resize ---
+  window.addEventListener('resize', function() {
+    if (pageImg.naturalWidth) {
+      canvas.style.width = pageImg.clientWidth + 'px';
+      canvas.style.height = pageImg.clientHeight + 'px';
+    }
+  });
+
+  // --- konversi koordinat mouse ke relatif (0-1) terhadap halaman ---
+  function getRelCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height
+    };
+  }
+
+  // --- gambar ulang semua anotasi di halaman saat ini ---
+  function redrawAnnotations() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const w = canvas.width;
+    const h = canvas.height;
+
+    annotations.filter(a => a.page === currentPage).forEach(a => {
+      ctx.save();
+      switch (a.type) {
+        case 'highlight':
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = a.color;
+          ctx.fillRect(a.x * w, a.y * h, (a.x2 - a.x) * w, (a.y2 - a.y) * h);
+          break;
+
+        case 'underline':
+          ctx.strokeStyle = a.color;
+          ctx.lineWidth = Math.max(2, h * 0.003);
+          ctx.beginPath();
+          ctx.moveTo(a.x * w, a.y2 * h);
+          ctx.lineTo(a.x2 * w, a.y2 * h);
+          ctx.stroke();
+          break;
+
+        case 'strikethrough':
+          ctx.strokeStyle = a.color;
+          ctx.lineWidth = Math.max(2, h * 0.003);
+          ctx.beginPath();
+          const midY = (a.y + a.y2) / 2;
+          ctx.moveTo(a.x * w, midY * h);
+          ctx.lineTo(a.x2 * w, midY * h);
+          ctx.stroke();
+          break;
+
+        case 'text':
+          ctx.globalAlpha = 1;
+          const fontSize = Math.max(14, h * 0.02);
+          ctx.font = fontSize + 'px sans-serif';
+          ctx.fillStyle = a.color;
+          ctx.fillText(a.text, a.x * w, a.y * h);
+          // kotak kecil sebagai indikator
+          ctx.strokeStyle = a.color;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(a.x * w - 2, a.y * h - fontSize - 2, ctx.measureText(a.text).width + 4, fontSize + 4);
+          break;
+
+        case 'draw':
+          if (a.points.length < 2) break;
+          ctx.strokeStyle = a.color;
+          ctx.lineWidth = Math.max(2, h * 0.003);
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(a.points[0].x * w, a.points[0].y * h);
+          for (let i = 1; i < a.points.length; i++) {
+            ctx.lineTo(a.points[i].x * w, a.points[i].y * h);
+          }
+          ctx.stroke();
+          break;
+      }
+      ctx.restore();
+    });
+  }
+
+  // --- mouse events ---
+  canvas.addEventListener('mousedown', function(e) {
+    const pos = getRelCoords(e);
+
+    if (currentTool === 'eraser') {
+      // cari anotasi terdekat dan hapus
+      eraseNearest(pos.x, pos.y);
+      return;
+    }
+
+    if (currentTool === 'text') {
+      textClickX = pos.x;
+      textClickY = pos.y;
+      textModalInput.value = '';
+      textModal.classList.add('show');
+      textModalInput.focus();
+      return;
+    }
+
+    isDrawing = true;
+    startX = pos.x;
+    startY = pos.y;
+
+    if (currentTool === 'draw') {
+      currentPath = [{ x: pos.x, y: pos.y }];
+    }
+  });
+
+  canvas.addEventListener('mousemove', function(e) {
+    if (!isDrawing) return;
+    const pos = getRelCoords(e);
+
+    if (currentTool === 'draw') {
+      currentPath.push({ x: pos.x, y: pos.y });
+      // redraw semua + path saat ini
+      redrawAnnotations();
+      ctx.save();
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = Math.max(2, canvas.height * 0.003);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(currentPath[0].x * canvas.width, currentPath[0].y * canvas.height);
+      for (let i = 1; i < currentPath.length; i++) {
+        ctx.lineTo(currentPath[i].x * canvas.width, currentPath[i].y * canvas.height);
+      }
+      ctx.stroke();
+      ctx.restore();
+    } else if (currentTool === 'highlight') {
+      redrawAnnotations();
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = currentColor;
+      ctx.fillRect(startX * canvas.width, startY * canvas.height, (pos.x - startX) * canvas.width, (pos.y - startY) * canvas.height);
+      ctx.restore();
+    } else if (currentTool === 'underline') {
+      redrawAnnotations();
+      ctx.save();
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = Math.max(2, canvas.height * 0.003);
+      ctx.beginPath();
+      ctx.moveTo(startX * canvas.width, pos.y * canvas.height);
+      ctx.lineTo(pos.x * canvas.width, pos.y * canvas.height);
+      ctx.stroke();
+      ctx.restore();
+    } else if (currentTool === 'strikethrough') {
+      redrawAnnotations();
+      ctx.save();
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = Math.max(2, canvas.height * 0.003);
+      ctx.beginPath();
+      const midY = (startY + pos.y) / 2;
+      ctx.moveTo(startX * canvas.width, midY * canvas.height);
+      ctx.lineTo(pos.x * canvas.width, midY * canvas.height);
+      ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  canvas.addEventListener('mouseup', function(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    const pos = getRelCoords(e);
+
+    if (currentTool === 'draw') {
+      annotations.push({
+        type: 'draw', page: currentPage,
+        points: [...currentPath],
+        color: currentColor, width: 2
+      });
+    } else if (currentTool === 'highlight') {
+      // pastikan area cukup besar
+      if (Math.abs(pos.x - startX) > 0.005 && Math.abs(pos.y - startY) > 0.005) {
+        annotations.push({
+          type: 'highlight', page: currentPage,
+          x: Math.min(startX, pos.x), y: Math.min(startY, pos.y),
+          x2: Math.max(startX, pos.x), y2: Math.max(startY, pos.y),
+          color: currentColor
+        });
+      }
+    } else if (currentTool === 'underline') {
+      if (Math.abs(pos.x - startX) > 0.01) {
+        annotations.push({
+          type: 'underline', page: currentPage,
+          x: Math.min(startX, pos.x), y: startY,
+          x2: Math.max(startX, pos.x), y2: pos.y,
+          color: currentColor
+        });
+      }
+    } else if (currentTool === 'strikethrough') {
+      if (Math.abs(pos.x - startX) > 0.01) {
+        annotations.push({
+          type: 'strikethrough', page: currentPage,
+          x: Math.min(startX, pos.x), y: startY,
+          x2: Math.max(startX, pos.x), y2: pos.y,
+          color: currentColor
+        });
+      }
+    }
+    redrawAnnotations();
+  });
+
+  // cegah drag gambar
+  pageImg.addEventListener('dragstart', e => e.preventDefault());
+
+  // --- hapus anotasi terdekat ---
+  function eraseNearest(rx, ry) {
+    let minDist = 0.05; // threshold jarak
+    let minIdx = -1;
+    annotations.forEach((a, i) => {
+      if (a.page !== currentPage) return;
+      let d = Infinity;
+      if (a.type === 'highlight') {
+        if (rx >= a.x && rx <= a.x2 && ry >= a.y && ry <= a.y2) d = 0;
+      } else if (a.type === 'text') {
+        d = Math.hypot(rx - a.x, ry - a.y);
+      } else if (a.type === 'draw') {
+        a.points.forEach(p => {
+          const pd = Math.hypot(rx - p.x, ry - p.y);
+          if (pd < d) d = pd;
+        });
+      } else if (a.type === 'underline' || a.type === 'strikethrough') {
+        if (rx >= a.x && rx <= a.x2) d = Math.abs(ry - (a.y + a.y2) / 2);
+      }
+      if (d < minDist) { minDist = d; minIdx = i; }
+    });
+    if (minIdx >= 0) {
+      annotations.splice(minIdx, 1);
+      redrawAnnotations();
+    }
+  }
+
+  // --- toolbar buttons ---
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentTool = this.dataset.tool;
+    });
+  });
+
+  // undo
+  document.getElementById('undoBtn').addEventListener('click', function() {
+    // hapus anotasi terakhir di halaman saat ini
+    for (let i = annotations.length - 1; i >= 0; i--) {
+      if (annotations[i].page === currentPage) {
+        annotations.splice(i, 1);
+        break;
+      }
+    }
+    redrawAnnotations();
+  });
+
+  // clear semua
+  document.getElementById('clearBtn').addEventListener('click', function() {
+    annotations = annotations.filter(a => a.page !== currentPage);
+    redrawAnnotations();
+  });
+
+  // color picker
+  colorInput.addEventListener('input', function() {
+    currentColor = this.value;
+    colorDot.style.background = this.value;
+  });
+  colorDot.addEventListener('click', function() { colorInput.click(); });
+
+  // navigasi halaman
+  prevBtn.addEventListener('click', function() {
+    if (currentPage > 0) loadPage(currentPage - 1);
+  });
+  nextBtn.addEventListener('click', function() {
+    if (currentPage < PAGES.length - 1) loadPage(currentPage + 1);
+  });
+
+  // text modal
+  document.getElementById('textModalOk').addEventListener('click', function() {
+    const text = textModalInput.value.trim();
+    if (text) {
+      annotations.push({
+        type: 'text', page: currentPage,
+        x: textClickX, y: textClickY,
+        text: text, color: currentColor
+      });
+      redrawAnnotations();
+    }
+    textModal.classList.remove('show');
+  });
+  document.getElementById('textModalCancel').addEventListener('click', function() {
+    textModal.classList.remove('show');
+  });
+  textModalInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById('textModalOk').click();
+    }
+    if (e.key === 'Escape') {
+      document.getElementById('textModalCancel').click();
+    }
+  });
+
+  // --- download dengan pdf-lib ---
+  document.getElementById('dlBtn').addEventListener('click', async function() {
+    const dlStatus = document.getElementById('dlStatus');
+    const dlBtn = document.getElementById('dlBtn');
+    dlBtn.disabled = true;
+    dlStatus.textContent = 'memproses...';
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const pdfBytes = Uint8Array.from(atob(PDF_BASE64), c => c.charCodeAt(0));
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pages = pdfDoc.getPages();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+      // konversi hex ke rgb (0-1)
+      function hexToRgb(hex) {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+        return rgb(r, g, b);
+      }
+
+      for (const ann of annotations) {
+        if (ann.page >= pages.length) continue;
+        const page = pages[ann.page];
+        const { width: pw, height: ph } = page.getSize();
+        const color = hexToRgb(ann.color);
+
+        switch (ann.type) {
+          case 'highlight':
+            page.drawRectangle({
+              x: ann.x * pw,
+              y: ph - ann.y2 * ph, // konversi y (pdf y dari bawah)
+              width: (ann.x2 - ann.x) * pw,
+              height: (ann.y2 - ann.y) * ph,
+              color: color,
+              opacity: 0.35
+            });
+            break;
+
+          case 'text':
+            page.drawText(ann.text, {
+              x: ann.x * pw,
+              y: ph - ann.y * ph,
+              size: 12,
+              font: font,
+              color: color
+            });
+            break;
+
+          case 'draw':
+            for (let i = 1; i < ann.points.length; i++) {
+              page.drawLine({
+                start: { x: ann.points[i-1].x * pw, y: ph - ann.points[i-1].y * ph },
+                end: { x: ann.points[i].x * pw, y: ph - ann.points[i].y * ph },
+                thickness: 2,
+                color: color
+              });
+            }
+            break;
+
+          case 'underline':
+            page.drawLine({
+              start: { x: ann.x * pw, y: ph - ann.y2 * ph },
+              end: { x: ann.x2 * pw, y: ph - ann.y2 * ph },
+              thickness: 2,
+              color: color
+            });
+            break;
+
+          case 'strikethrough':
+            const midYpdf = (ann.y + ann.y2) / 2;
+            page.drawLine({
+              start: { x: ann.x * pw, y: ph - midYpdf * ph },
+              end: { x: ann.x2 * pw, y: ph - midYpdf * ph },
+              thickness: 2,
+              color: color
+            });
+            break;
+        }
+      }
+
+      const modifiedPdf = await pdfDoc.save();
+      const blob = new Blob([modifiedPdf], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'output_annotated.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      dlStatus.textContent = 'download selesai!';
+    } catch (err) {
+      console.error(err);
+      dlStatus.textContent = 'gagal: ' + err.message;
+    }
+    dlBtn.disabled = false;
+  });
+
+  // --- init ---
+  loadPage(0);
+})();
+</script>
+</body>
+</html>

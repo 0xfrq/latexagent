@@ -1,0 +1,7 @@
+
+  You can now view your Streamlit app in your browser.
+
+  Network URL: http://192.168.1.14:8501
+  External URL: http://103.47.134.91:8501
+
+..\c++\implementation\internal.cpp:205:mupdf::reinit_singlethreaded(): Reinitialising as single-threaded.
