@@ -1,16 +1,17 @@
 """
-viewer.py - builder buat interactive pdf viewer html
-inject data halaman dan pdf base64 ke template
+viewer.py - interactive pdf viewer
+render pakai streamlit components.html
 """
 
 import os
 import json
+import streamlit.components.v1 as components
 
 
-def build_html(pages_data, pdf_base64):
+def render(pages_data, pdf_base64, height=800, key=None):
     """
-    baca template html, inject data halaman dan pdf base64.
-    return string html yang siap di-render di streamlit.
+    render interactive pdf viewer.
+    return None (komunikasi satu arah dari python ke html).
     """
     template_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "viewer_template.html"
@@ -20,4 +21,5 @@ def build_html(pages_data, pdf_base64):
 
     html = html.replace("__PAGES_JSON__", json.dumps(pages_data))
     html = html.replace("__PDF_BASE64__", pdf_base64)
-    return html
+
+    components.html(html, height=height, scrolling=True)
